@@ -1,0 +1,245 @@
+pragma solidity ^0.5.0;
+
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+
+/**
+  Precondition: the ids of the data owners are their addresses.
+*/
+contract Marketplace {
+    struct ModelData {
+        string modelId;
+        address[] trainers;
+        address[] validators;
+        uint[] msesByIter; // El MB chequea con su mse contra esto
+        mapping(address => uint[]) partialMsesByIter;
+        uint currIter;
+        uint improvement; // Percentage
+        uint frozenPayment;
+        mapping(address => uint) contributions; // Percentages
+        Status status;
+        address owner; // Model Buyer's are the owners
+    }
+
+    address[] public dataOwnerAddrs;
+    mapping(address => bool) public dataOwners;
+    mapping(address => bool) public federatedAggregators;
+    mapping(address => bool) public modelBuyers;
+    mapping(string => ModelData) public models;
+
+    enum Status {INITIATED, STOPPED, FINISHED}
+
+    constructor() public {}
+
+    /******************************************************************************************************************/
+    /******************************                       EVENTS                      *********************************/
+    /******************************************************************************************************************/
+
+    event ContributionPayment(address receiver, uint256 amount);
+    event ValidationPayment(address receiver, uint256 amount);
+    event OrchestrationPayment(address receiver, uint256 amount);
+
+    /******************************************************************************************************************/
+    /******************************                     MODIFIERS                     *********************************/
+    /******************************************************************************************************************/
+
+    modifier onlyDataOwner() {
+        require(dataOwners[msg.sender], "Must be a Data Owner to call this function");
+        _;
+    }
+
+    modifier onlyFederatedAggr() {
+        require(federatedAggregators[msg.sender], "Must be a Fed. Aggr. to call this function");
+        _;
+    }
+
+    modifier onlyModelBuyer() {
+        require(modelBuyers[msg.sender], "Must be a Model Buyer to call this function");
+        _;
+    }
+
+    modifier isFinished(string memory modelId) {
+        require(models[modelId].status == Status.FINISHED, "Model training must be finished to call this function");
+        _;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                 REGISTERING ACTORS                *********************************/
+    /******************************************************************************************************************/
+
+    /**
+      Adds a new Data Owner to the DataOwners set.
+      @param doAddress the data owner address used as value in the mapping
+    */
+    function setDataOwner(address doAddress) public {
+        dataOwners[doAddress] = true;
+    }
+
+    function setFederatedAggregator(address fedAggrAddress) public {
+        federatedAggregators[fedAggrAddress] = true;
+    }
+
+    function setModelBuyer(address fedAggrAddress) public {
+        federatedAggregators[fedAggrAddress] = true;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                   MODEL CREATION                  *********************************/
+    /******************************************************************************************************************/
+
+    function initModel(string memory modelId, address[] memory validators, address[] memory trainers, address modelBuyer) private pure returns (ModelData memory) {
+        ModelData memory model = ModelData({
+            trainers: trainers,
+            validators: validators,
+            modelId: modelId,
+            msesByIter: new uint[](200),
+            improvement: 0,
+            currIter: 0,
+            frozenPayment: 0,
+            status: Status.INITIATED,
+            owner: modelBuyer
+        });
+        return model;
+    }
+
+    function newModel(string memory modelId, address[] memory validators, address[] memory trainers, address modelBuyer) public onlyFederatedAggr {
+        models[modelId] = initModel(modelId, validators, trainers, modelBuyer);
+    }
+
+    /**
+      Called from ModelBuyer when ordering training of model.
+    */
+    function payForModel(string memory modelId, uint pay) public payable onlyModelBuyer {
+        require(msg.value == pay, "Payment amount is not correct.");
+        models[modelId].frozenPayment += pay;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                 METRICS PERSISTENCE               *********************************/
+    /******************************************************************************************************************/
+
+    function saveMse(string memory modelId, uint mse, uint iter) public onlyFederatedAggr {
+        require(federatedAggregators[msg.sender], "Only the Fed. Aggr. can save the mses");
+        models[modelId].msesByIter[iter] = mse;
+    }
+
+    function savePartialMse(string memory modelId, uint mse, address dataOwner, uint iter) public onlyFederatedAggr {
+        require(federatedAggregators[msg.sender], "Only the Fed. Aggr. can save the mses");
+        models[modelId].partialMsesByIter[dataOwner][iter] = mse;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                  METRICS GETTERS                  *********************************/
+    /******************************************************************************************************************/
+
+    function getDOContribution(string memory modelId, address dataOwnerId) public view returns (uint) {
+        uint contribution = models[modelId].contributions[dataOwnerId];
+        return contribution;
+    }
+
+    function getImprovement(string memory modelId) public view returns (uint) {
+        uint improvement = models[modelId].improvement;
+        return improvement;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                 METRICS VALIDATION                *********************************/
+    /******************************************************************************************************************/
+
+    function checkMseForIter(string memory modelId, uint iter, uint mse) public onlyModelBuyer view returns (bool) {
+        require(models[modelId].msesByIter[iter] == mse, "Models not matching");
+        return true;
+    }
+
+    /******************************************************************************************************************/
+    /******************************                     CALCULATIONS                  *********************************/
+    /******************************************************************************************************************/
+
+    // Calculates the overall improvement of the model since its initial state expressed as percentage.
+    function calculateImprovement(uint initialMse, uint currMse) private pure returns (uint) {
+        return (initialMse - currMse) / initialMse * 100;
+    }
+
+    // Calculates the contribution made by a data owner in the training of the model, expressed as percentage.
+    function calculateContribution(uint intialMse, uint currMse) private pure returns (uint) {
+        uint improvement = intialMse - currMse;
+        if (improvement >= 0) {
+            return improvement;
+        } else {
+          return 0;
+        }
+    }
+
+    // Calculates the contributions made by each of the data owners that participated in the training of the model
+    // expressed as percentage.
+    function calculateContributions(string memory modelId, uint iter) public onlyFederatedAggr isFinished(modelId) {
+        ModelData storage model = models[modelId];
+        model.improvement = calculateImprovement(model.msesByIter[0], model.msesByIter[iter]);
+        uint contributionsSum = 0;
+        for (uint i = 0; i < model.trainers.length; i++) {
+            address trainer = model.trainers[i];
+            model.contributions[trainer] = calculateContribution(model.msesByIter[0], model.partialMsesByIter[trainer][iter]);
+            contributionsSum = contributionsSum + model.contributions[trainer];
+        }
+        for (uint i = 0; i < model.trainers.length; i++) {
+            address trainer = model.trainers[i];
+            model.contributions[trainer] = (model.contributions[trainer]) / contributionsSum * 100;
+        }
+    }
+
+    function calculatePaymentForContribution(string memory modelId, address dataOwner) private onlyDataOwner isFinished(modelId) view returns (uint) {
+        return models[modelId].frozenPayment * 70 / 100 * getImprovement(modelId) / 100 * getDOContribution(modelId, dataOwner) / 100;
+    }
+
+    /**
+      Returns the amount of wei that a payee should get. This payee belongs to a group where each is payed equally.
+      @param modelId the model being trained
+      @param take part of the payment dedicated for this subset of the payees
+      @param payeesCount amount of the payees that belong to the group that is payed equally.
+    */
+    function calculateFixedPayment(string memory modelId, uint take, uint payeesCount) private view returns (uint) {
+        return models[modelId].frozenPayment * take / 100 / payeesCount;
+    }
+
+    /**
+      Returns the amount of wei that a data owner working as validator should get for his work.
+      @param modelId the model being trained
+    */
+    function calculatePaymentForValidation(string memory modelId) private view returns (uint) {
+        return calculateFixedPayment(modelId, 20, models[modelId].validators.length);
+    }
+
+    /**
+      Returns the amount of wei that a Fed. Aggr. should get for his work aggregating updates and orchestrating the
+      training of the model.
+      @param modelId the model being trained
+    */
+    function calculatePaymentForOrchestration(string memory modelId) private view returns (uint) {
+        return calculateFixedPayment(modelId, 10, 1);
+    }
+
+    /******************************************************************************************************************/
+    /******************************                      PAYMENTS                     *********************************/
+    /******************************************************************************************************************/
+
+    /**
+      Function called from Data Owner with his address.
+      Pays the Data Owner for his work done training the model.
+    */
+    function payForContribution(string memory modelId) public onlyDataOwner isFinished(modelId) {
+        uint prize = calculatePaymentForContribution(modelId, msg.sender);
+        msg.sender.transfer(prize);
+        emit ContributionPayment(msg.sender, prize);
+    }
+
+    function payForValidation(string memory modelId) public onlyDataOwner isFinished(modelId) {
+        uint prize = calculatePaymentForValidation(modelId);
+        msg.sender.transfer(prize);
+        emit ValidationPayment(msg.sender, prize);
+    }
+
+    function payForOrchestration(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
+        uint prize = calculatePaymentForOrchestration(modelId);
+        msg.sender.transfer(prize);
+        emit OrchestrationPayment(msg.sender, prize);
+    }
+}
