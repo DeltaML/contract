@@ -24,3 +24,5 @@ This repository contains the smart contract for the Descentralized ML models mar
 - Open a terminal in the project directory
 - Run the command
 ```truffle test```
+
+**IMPORTANT:** Remember that a contract deployed to the network will live forever. If you are testing **using the Ganache local testnet** and making changes to the contract as you go, and you want to upload a new updated version of that contract, the easiest way to go is erasing your current workspace in Ganache and creating a new one were you don't have the contract deployed yet.
