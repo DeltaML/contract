@@ -17,7 +17,11 @@
   },
   "dependencies": {
     "@digix/doxity": "^0.5.2",
+    "bn-chai": "^1.0.1",
+    "chai": "^4.2.0",
+    "dirty-chai": "^2.0.1",
     "openzeppelin-solidity": "^2.3.0",
+    "openzeppelin-test-helpers": "^0.4.3",
     "truffle": "^5.0.36"
   }
 }

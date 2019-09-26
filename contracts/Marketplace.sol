@@ -20,7 +20,6 @@ contract Marketplace {
         address owner; // Model Buyer's are the owners
     }
 
-    address[] public dataOwnerAddrs;
     mapping(address => bool) public dataOwners;
     mapping(address => bool) public federatedAggregators;
     mapping(address => bool) public modelBuyers;
@@ -78,8 +77,8 @@ contract Marketplace {
         federatedAggregators[fedAggrAddress] = true;
     }
 
-    function setModelBuyer(address fedAggrAddress) public {
-        federatedAggregators[fedAggrAddress] = true;
+    function setModelBuyer(address modelBuyerAddress) public {
+        modelBuyers[modelBuyerAddress] = true;
     }
 
     /******************************************************************************************************************/
