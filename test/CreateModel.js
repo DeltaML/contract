@@ -46,22 +46,47 @@ describe('Game tests-Disconnection', function() {
                 expect(result).to.be.true();
             });
         });
-        describe('WHEN the player one wins by a row', function() {
+        describe('WHEN saving new mse and partial mses and we check if they were saved correctly', function() {
+            let resultPartialMse1;
+            let resultPartialMse2;
+            before(async function() {
+                await marketplace.savePartialMse(modelId, 900, trainer1, 0, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 800, trainer2, 0, {from: fedAggr});
+                resultPartialMse1 = await marketplace.checkPartialMseForIter(modelId, trainer1, 0, 900, {from: modelBuyer});
+                resultPartialMse2 = await marketplace.checkPartialMseForIter(modelId, trainer2, 0, 800, {from: modelBuyer});
+           });
+            it('THEN the result is true', async function() {
+                expect(resultPartialMse1).to.be.true();
+                expect(resultPartialMse2).to.be.true();
+            });
+        });
+        describe('WHEN saving new mses for next iter and partial mses and we check if they were saved correctly', function() {
             let result;
             let resultPartialMse1;
             let resultPartialMse2;
             before(async function() {
                 await marketplace.saveMse(modelId, 800, 1, {from: fedAggr});
-                await marketplace.savePartialMse(modelId, 900, trainer1, 0, {from: fedAggr});
-                await marketplace.savePartialMse(modelId, 800, trainer2, 0, {from: fedAggr});
-                await marketplace.savePartialMse(modelId, 900, trainer1, 1, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 890, trainer1, 1, {from: fedAggr});
                 await marketplace.savePartialMse(modelId, 700, trainer2, 1, {from: fedAggr});
                 result = await marketplace.checkMseForIter(modelId, 1, 800, {from: modelBuyer});
-                resultPartialMse1 = await marketplace.checkPartialMseForIter(modelId, trainer1, 1, 900, {from: modelBuyer});
+                resultPartialMse1 = await marketplace.checkPartialMseForIter(modelId, trainer1, 1, 890, {from: modelBuyer});
                 resultPartialMse2 = await marketplace.checkPartialMseForIter(modelId, trainer2, 1, 700, {from: modelBuyer});
-           });
+            });
             it('THEN the result is true', async function() {
                 expect(result).to.be.true();
+                expect(resultPartialMse1).to.be.true();
+                expect(resultPartialMse2).to.be.true();
+            });
+        });
+        describe('WHEN calculating contributions for iter 1 (already saved in previous test)', function() {
+            let result;
+            before(async function() {
+                await marketplace.finishModelTraining(modelId, {from: modelBuyer});
+                await marketplace.calculateContributions(modelId, {from: fedAggr});
+                result = await marketplace.getDOContribution(modelId, trainer1, {from: trainer1});
+            });
+            it('THEN the contributions should be above 0', async function() {
+                expect(result.valueOf()).to.be.above(0);
             });
         });
     });

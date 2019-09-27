@@ -56,6 +56,16 @@ contract Marketplace {
         _;
     }
 
+    modifier onlyModelBuyerOrFederatedAggr() {
+        require(modelBuyers[msg.sender] || federatedAggregators[msg.sender], "Must be a Model Buyer or Fed. Aggr. to call this function");
+        _;
+    }
+
+    modifier isInitiated(string memory modelId) {
+        require(models[modelId].status == Status.INITIATED, "Model training must be initiated to call this function");
+        _;
+    }
+
     modifier isFinished(string memory modelId) {
         require(models[modelId].status == Status.FINISHED, "Model training must be finished to call this function");
         _;
@@ -112,19 +122,31 @@ contract Marketplace {
         models[modelId].frozenPayment += pay;
     }
 
+    function finishModelTraining(string memory modelId) public onlyModelBuyer isInitiated(modelId) {
+        models[modelId].status = Status.FINISHED;
+    }
+
     /******************************************************************************************************************/
     /******************************                 METRICS PERSISTENCE               *********************************/
     /******************************************************************************************************************/
 
-    function saveMse(string memory modelId, uint mse, uint iter) public onlyFederatedAggr {
+    function updateCurrentIterForModel(string memory modelId, uint iter) private {
+        if (iter > models[modelId].currIter) {
+            models[modelId].currIter = iter;
+        }
+    }
+
+    function saveMse(string memory modelId, uint mse, uint iter) public onlyFederatedAggr isInitiated(modelId) {
+        updateCurrentIterForModel(modelId, iter);
         models[modelId].msesByIter[iter] = mse;
     }
 
-    function savePartialMse(string memory modelId, uint mse, address trainer, uint iter) public onlyFederatedAggr {
+    function savePartialMse(string memory modelId, uint mse, address trainer, uint iter) public onlyFederatedAggr isInitiated(modelId) {
         require(dataOwners[trainer], "Address passed as parameter is not from valid data owner");
         if (models[modelId].partialMsesByIter[trainer].length == 0) {
             models[modelId].partialMsesByIter[trainer] = new uint[](200);
         }
+        updateCurrentIterForModel(modelId, iter);
         models[modelId].partialMsesByIter[trainer][iter] = mse;
     }
 
@@ -132,7 +154,7 @@ contract Marketplace {
     /******************************                  METRICS GETTERS                  *********************************/
     /******************************************************************************************************************/
 
-    function getDOContribution(string memory modelId, address dataOwnerId) public view returns (uint) {
+    function getDOContribution(string memory modelId, address dataOwnerId) public onlyDataOwner view returns (uint) {
         uint contribution = models[modelId].contributions[dataOwnerId];
         return contribution;
     }
@@ -180,8 +202,9 @@ contract Marketplace {
 
     // Calculates the contributions made by each of the data owners that participated in the training of the model
     // expressed as percentage.
-    function calculateContributions(string memory modelId, uint iter) public onlyFederatedAggr isFinished(modelId) {
+    function calculateContributions(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
         ModelData storage model = models[modelId];
+        uint iter = model.currIter;
         model.improvement = calculateImprovement(model.msesByIter[0], model.msesByIter[iter]);
         uint contributionsSum = 0;
         for (uint i = 0; i < model.trainers.length; i++) {
