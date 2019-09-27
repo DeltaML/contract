@@ -19,11 +19,11 @@ describe('Game tests-Disconnection', function() {
         let validator2 = accounts[6];
         let fedAggr = accounts[7];
         let modelBuyer = accounts[8];
-
+        let modelId = "model1";
         let marketplace;
+        let initialMse = 1000;
         before(async function() {
             marketplace = await getMarketplace();
-
             await marketplace.setDataOwner(trainer1, { from: trainer1 });
             await marketplace.setDataOwner(trainer2, { from: trainer2 });
             await marketplace.setDataOwner(trainer3, { from: trainer3 });
@@ -32,17 +32,34 @@ describe('Game tests-Disconnection', function() {
             await marketplace.setDataOwner(validator2, { from: validator2 });
             await marketplace.setFederatedAggregator(fedAggr, { from: fedAggr });
             await marketplace.setModelBuyer(modelBuyer, { from: modelBuyer })
-
         });
-        describe('WHEN the player one wins by a row', function() {
+        describe('WHEN a new model is created with mse 1000 and I check if its mse is 1000', function() {
             let result;
             let initialMse = 1000;
             let iter = 0;
             before(async function() {
-                await marketplace.newModel("model1", [validator1], [trainer1, trainer2], modelBuyer, { from: fedAggr });
-                await marketplace.saveMse("model1", initialMse, iter, {from: fedAggr});
-                result = await marketplace.checkMseForIter("model1", iter, initialMse, {from: modelBuyer})
+                await marketplace.newModel(modelId, [validator1], [trainer1, trainer2], modelBuyer, { from: fedAggr });
+                await marketplace.saveMse(modelId, initialMse, iter, {from: fedAggr});
+                result = await marketplace.checkMseForIter(modelId, iter, initialMse, {from: modelBuyer})
             });
+            it('THEN the result is true', async function() {
+                expect(result).to.be.true();
+            });
+        });
+        describe('WHEN the player one wins by a row', function() {
+            let result;
+            let resultPartialMse1;
+            let resultPartialMse2;
+            before(async function() {
+                await marketplace.saveMse(modelId, 800, 1, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 900, trainer1, 0, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 800, trainer2, 0, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 900, trainer1, 1, {from: fedAggr});
+                await marketplace.savePartialMse(modelId, 700, trainer2, 1, {from: fedAggr});
+                result = await marketplace.checkMseForIter(modelId, 1, 800, {from: modelBuyer});
+                resultPartialMse1 = await marketplace.checkPartialMseForIter(modelId, trainer1, 1, 900, {from: modelBuyer});
+                resultPartialMse2 = await marketplace.checkPartialMseForIter(modelId, trainer2, 1, 700, {from: modelBuyer});
+           });
             it('THEN the result is true', async function() {
                 expect(result).to.be.true();
             });

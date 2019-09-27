@@ -117,13 +117,15 @@ contract Marketplace {
     /******************************************************************************************************************/
 
     function saveMse(string memory modelId, uint mse, uint iter) public onlyFederatedAggr {
-        require(federatedAggregators[msg.sender], "Only the Fed. Aggr. can save the mses");
         models[modelId].msesByIter[iter] = mse;
     }
 
-    function savePartialMse(string memory modelId, uint mse, address dataOwner, uint iter) public onlyFederatedAggr {
-        require(federatedAggregators[msg.sender], "Only the Fed. Aggr. can save the mses");
-        models[modelId].partialMsesByIter[dataOwner][iter] = mse;
+    function savePartialMse(string memory modelId, uint mse, address trainer, uint iter) public onlyFederatedAggr {
+        require(dataOwners[trainer], "Address passed as parameter is not from valid data owner");
+        if (models[modelId].partialMsesByIter[trainer].length == 0) {
+            models[modelId].partialMsesByIter[trainer] = new uint[](200);
+        }
+        models[modelId].partialMsesByIter[trainer][iter] = mse;
     }
 
     /******************************************************************************************************************/
@@ -145,8 +147,16 @@ contract Marketplace {
     /******************************************************************************************************************/
 
     function checkMseForIter(string memory modelId, uint iter, uint mse) public onlyModelBuyer view returns (bool) {
-        require(models[modelId].msesByIter[iter] == mse, "Models not matching");
-        return true;
+        require(models[modelId].msesByIter.length > 0, "Mse array not initialized.");
+        require(models[modelId].msesByIter[iter] > 0, "Mse for iter not initialized.");
+        return models[modelId].msesByIter[iter] == mse;
+    }
+
+    function checkPartialMseForIter(string memory modelId, address trainer, uint iter, uint mse) public onlyModelBuyer view returns (bool) {
+        require(dataOwners[trainer], "Address passed as parameter is not from valid data owner");
+        require(models[modelId].partialMsesByIter[trainer].length > 0, "Partial mse array not initialized.");
+        require(models[modelId].partialMsesByIter[trainer][iter] > 0, "Partial mse for iter not initialized.");
+        return models[modelId].partialMsesByIter[trainer][iter] == mse;
     }
 
     /******************************************************************************************************************/
