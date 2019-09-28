@@ -78,15 +78,37 @@ describe('Game tests-Disconnection', function() {
                 expect(resultPartialMse2).to.be.true();
             });
         });
+        describe('WHEN the initialMse is 900 and the mses for trainer 1 and 2 are 800 and 700 respectively', function() {
+            let mseDifference1;
+            let mseDifference2;
+            let contribPercentageDummy;
+            let contribPercentage;
+            before(async function() {
+                mseDifference1 = (await marketplace.mseDifference(900, 800)).toNumber();
+                mseDifference2 = (await marketplace.mseDifference(900, 700)).toNumber();
+                contribPercentageDummy = (await marketplace.contributionPercentage(100, 200)).toNumber();
+                contribPercentage = (await marketplace.contributionPercentage(mseDifference1, mseDifference1 + mseDifference2)).toNumber();
+            });
+            it('THEN the contribution percentage should be around 33%', async function() {
+                expect(mseDifference1).to.equal(100);
+                expect(mseDifference2).to.equal(200);
+                expect(contribPercentageDummy).to.be.equal(50);
+                expect(contribPercentage).to.be.above(30);
+                expect(contribPercentage).to.be.below(35);
+            });
+        });
         describe('WHEN calculating contributions for iter 1 (already saved in previous test)', function() {
-            let result;
+            let contributionTrainer1;
+            let contributionTrainer2;
             before(async function() {
                 await marketplace.finishModelTraining(modelId, {from: modelBuyer});
                 await marketplace.calculateContributions(modelId, {from: fedAggr});
-                result = await marketplace.getDOContribution(modelId, trainer1, {from: trainer1});
+                contributionTrainer1 = await marketplace.getDOContribution(modelId, trainer1, {from: trainer1});
+                contributionTrainer2 = await marketplace.getDOContribution(modelId, trainer2, {from: trainer2});
             });
-            it('THEN the contributions should be above 0', async function() {
-                expect(result.valueOf()).to.be.above(0);
+            it('THEN the contributions should be above 26% and 73% for trainer1 and trainer2 respectively', async function() {
+                expect(contributionTrainer1.toNumber()).to.equal(26);
+                expect(contributionTrainer2.toNumber()).to.equal(73);
             });
         });
     });

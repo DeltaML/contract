@@ -186,18 +186,25 @@ contract Marketplace {
     /******************************************************************************************************************/
 
     // Calculates the overall improvement of the model since its initial state expressed as percentage.
-    function calculateImprovement(uint initialMse, uint currMse) private pure returns (uint) {
+    // TODO: Put back as private before deploying
+    function calculateImprovement(uint initialMse, uint currMse) public pure returns (uint) {
         return (initialMse - currMse) / initialMse * 100;
     }
 
     // Calculates the contribution made by a data owner in the training of the model, expressed as percentage.
-    function calculateContribution(uint intialMse, uint currMse) private pure returns (uint) {
-        uint improvement = intialMse - currMse;
-        if (improvement >= 0) {
-            return improvement;
+    // TODO: Put back as private before deploying
+    function mseDifference(uint intialMse, uint currMse) public pure returns (uint) {
+        uint difference = intialMse - currMse;
+        if (difference >= 0) {
+            return difference;
         } else {
           return 0;
         }
+    }
+
+    // TODO: Put back as private before deploying
+    function contributionPercentage(uint mseDiff, uint totalDifference) public pure returns (uint) {
+        return (mseDiff * 100) / totalDifference;
     }
 
     // Calculates the contributions made by each of the data owners that participated in the training of the model
@@ -209,17 +216,17 @@ contract Marketplace {
         uint contributionsSum = 0;
         for (uint i = 0; i < model.trainers.length; i++) {
             address trainer = model.trainers[i];
-            model.contributions[trainer] = calculateContribution(model.msesByIter[0], model.partialMsesByIter[trainer][iter]);
+            model.contributions[trainer] = mseDifference(model.msesByIter[0], model.partialMsesByIter[trainer][iter]);
             contributionsSum = contributionsSum + model.contributions[trainer];
         }
         for (uint i = 0; i < model.trainers.length; i++) {
             address trainer = model.trainers[i];
-            model.contributions[trainer] = (model.contributions[trainer]) / contributionsSum * 100;
+            model.contributions[trainer] = contributionPercentage(model.contributions[trainer], contributionsSum);
         }
     }
 
     function calculatePaymentForContribution(string memory modelId, address dataOwner) private onlyDataOwner isFinished(modelId) view returns (uint) {
-        return models[modelId].frozenPayment * 70 / 100 * getImprovement(modelId) / 100 * getDOContribution(modelId, dataOwner) / 100;
+        return (((((models[modelId].frozenPayment * 70) / 100) * getImprovement(modelId)) / 100) * getDOContribution(modelId, dataOwner)) / 100;
     }
 
     /**
