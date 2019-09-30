@@ -24,15 +24,19 @@ contract Marketplace {
     mapping(address => bool) public federatedAggregators;
     mapping(address => bool) public modelBuyers;
     mapping(string => ModelData) public models;
+    mapping(string => uint256) public prices;
 
     enum Status {INITIATED, STOPPED, FINISHED}
 
-    constructor() public {}
+    constructor() public {
+        prices["LINEAR_REGRESSION"] = 5883045064;
+    }
 
     /******************************************************************************************************************/
     /******************************                       EVENTS                      *********************************/
     /******************************************************************************************************************/
 
+    event ModelCreationPayment(address owner, uint256 amount);
     event ContributionPayment(address receiver, uint256 amount);
     event ValidationPayment(address receiver, uint256 amount);
     event OrchestrationPayment(address receiver, uint256 amount);
@@ -117,9 +121,10 @@ contract Marketplace {
     /**
       Called from ModelBuyer when ordering training of model.
     */
-    function payForModel(string memory modelId, uint pay) public payable onlyModelBuyer {
+    function payForModel(string memory modelId, uint256 pay) public payable onlyModelBuyer {
         require(msg.value == pay, "Payment amount is not correct.");
         models[modelId].frozenPayment += pay;
+        emit ModelCreationPayment(address(this), pay);
     }
 
     function finishModelTraining(string memory modelId) public onlyModelBuyer isInitiated(modelId) {
@@ -188,7 +193,7 @@ contract Marketplace {
     // Calculates the overall improvement of the model since its initial state expressed as percentage.
     // TODO: Put back as private before deploying
     function calculateImprovement(uint initialMse, uint currMse) public pure returns (uint) {
-        return (initialMse - currMse) / initialMse * 100;
+        return ((initialMse - currMse) * 100) / initialMse;
     }
 
     // Calculates the contribution made by a data owner in the training of the model, expressed as percentage.
@@ -225,8 +230,11 @@ contract Marketplace {
         }
     }
 
-    function calculatePaymentForContribution(string memory modelId, address dataOwner) private onlyDataOwner isFinished(modelId) view returns (uint) {
-        return (((((models[modelId].frozenPayment * 70) / 100) * getImprovement(modelId)) / 100) * getDOContribution(modelId, dataOwner)) / 100;
+    function calculatePaymentForContribution(string memory modelId, address dataOwner) public onlyDataOwner isFinished(modelId) view returns (uint) {
+        uint paymentForImprov = (models[modelId].frozenPayment * getImprovement(modelId)) / 100;
+        uint paymentForImprovForTraining = (paymentForImprov * 70) / 100;
+        uint paymentForContribution = (paymentForImprovForTraining * getDOContribution(modelId, dataOwner)) / 100;
+        return paymentForContribution;
     }
 
     /**
