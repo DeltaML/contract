@@ -244,14 +244,14 @@ contract Marketplace {
       @param payeesCount amount of the payees that belong to the group that is payed equally.
     */
     function calculateFixedPayment(string memory modelId, uint take, uint payeesCount) private view returns (uint) {
-        return models[modelId].frozenPayment * take / 100 / payeesCount;
+        return ((models[modelId].frozenPayment * take) / 100) / payeesCount;
     }
 
     /**
       Returns the amount of wei that a data owner working as validator should get for his work.
       @param modelId the model being trained
     */
-    function calculatePaymentForValidation(string memory modelId) private view returns (uint) {
+    function calculatePaymentForValidation(string memory modelId) public view returns (uint) {
         return calculateFixedPayment(modelId, 20, models[modelId].validators.length);
     }
 
@@ -260,7 +260,7 @@ contract Marketplace {
       training of the model.
       @param modelId the model being trained
     */
-    function calculatePaymentForOrchestration(string memory modelId) private view returns (uint) {
+    function calculatePaymentForOrchestration(string memory modelId) public view returns (uint) {
         return calculateFixedPayment(modelId, 10, 1);
     }
 

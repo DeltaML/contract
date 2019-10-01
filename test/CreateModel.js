@@ -1,4 +1,4 @@
-const { expectEvent, BN } = require('openzeppelin-test-helpers');
+const { expectEvent, BN, ether } = require('openzeppelin-test-helpers');
 const { expect, use } = require('chai');
 
 const dirtyChai = require('dirty-chai');
@@ -100,15 +100,22 @@ describe('Game tests-Disconnection', function() {
         describe('WHEN calculating contributions for iter 1 (already saved in previous test)', function() {
             let contributionTrainer1;
             let contributionTrainer2;
+            let contributionValidator1;
+            let contributionFedAggr;
             before(async function() {
+                await marketplace.payForModel(modelId, ether('1'), {value: ether('1'), from: modelBuyer});
                 await marketplace.finishModelTraining(modelId, {from: modelBuyer});
                 await marketplace.calculateContributions(modelId, {from: fedAggr});
                 contributionTrainer1 = await marketplace.getDOContribution(modelId, trainer1, {from: trainer1});
                 contributionTrainer2 = await marketplace.getDOContribution(modelId, trainer2, {from: trainer2});
+                contributionValidator1 = await marketplace.calculatePaymentForValidation(modelId);
+                contributionFedAggr = await marketplace.calculatePaymentForOrchestration(modelId);
             });
             it('THEN the contributions should be above 26% and 73% for trainer1 and trainer2 respectively', async function() {
                 expect(contributionTrainer1.toNumber()).to.equal(26);
                 expect(contributionTrainer2.toNumber()).to.equal(73);
+                expect(contributionFedAggr).to.be.a.bignumber.that.is.greaterThan(ether('0'));
+                expect(contributionValidator1).to.be.a.bignumber.that.is.greaterThan(ether('0'));
             });
         });
     });

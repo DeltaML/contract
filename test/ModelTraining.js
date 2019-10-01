@@ -37,6 +37,8 @@ describe('Model entire training cicle', function() {
             let mse = 1000;
             let contrib1;
             let contrib2;
+            let contrib3;
+            let contrib4;
             let improv;
             before(async function() {
                 await marketplace.newModel(modelId, [validator1], [trainer1, trainer2], modelBuyer, { from: fedAggr });
@@ -60,15 +62,25 @@ describe('Model entire training cicle', function() {
                 improv = await marketplace.getImprovement(modelId);
                 contrib1 = await marketplace.calculatePaymentForContribution(modelId, trainer1, {from: trainer1});
                 contrib2 = await marketplace.calculatePaymentForContribution(modelId, trainer2, {from: trainer2});
+                contrib3 = await marketplace.calculatePaymentForValidation(modelId);
+                contrib4 = await marketplace.calculatePaymentForOrchestration(modelId);
                 await marketplace.payForContribution(modelId, {from: trainer1});
                 await marketplace.payForContribution(modelId, {from: trainer2});
+                await marketplace.payForValidation(modelId, {from: validator1});
+                await marketplace.payForOrchestration(modelId, {from: fedAggr});
             });
             it('THEN the contributions should be correct', async function() {
                 expect(result).to.be.true();
+                console.log(contrib3.toString(10));
+                console.log(contrib4.toString(10));
+
                 expect(contrib1).to.be.a.bignumber.that.is.greaterThan(ether('0.8'));
                 expect(contrib2).to.be.a.bignumber.that.is.greaterThan(ether('0.8'));
                 expect(contrib1).to.be.a.bignumber.that.is.lessThan(ether('1'));
                 expect(contrib2).to.be.a.bignumber.that.is.lessThan(ether('1'));
+
+                expect(contrib3).to.be.a.bignumber.that.is.equal(ether('1'));
+                expect(contrib4).to.be.a.bignumber.that.is.equal(ether('0.5'));
             });
         });
     });
