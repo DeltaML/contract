@@ -163,6 +163,10 @@ contract Marketplace {
     /******************************************************************************************************************/
 
     function getDOContribution(string memory modelId, address dataOwnerId) public onlyDataOwner view returns (uint) {
+        return _getDOContribution(modelId, dataOwnerId);
+    }
+ 
+    function _getDOContribution(string memory modelId, address dataOwnerId) private view returns (uint) {
         uint contribution = models[modelId].contributions[dataOwnerId];
         return contribution;
     }
@@ -233,10 +237,14 @@ contract Marketplace {
         }
     }
 
-    function calculatePaymentForContribution(string memory modelId, address dataOwner) public onlyDataOwner isFinished(modelId) view returns (uint) {
+    function calculatePaymentForContribution(string memory modelId, address dataOwner) public onlyDataOwner view returns (uint) {
+        return _calculatePaymentForContribution(modelId, dataOwner);
+    }
+
+    function _calculatePaymentForContribution(string memory modelId, address dataOwner) private isFinished(modelId) view returns (uint) {
         uint paymentForImprov = (models[modelId].frozenPayment * getImprovement(modelId)) / 100;
         uint paymentForImprovForTraining = (paymentForImprov * 70) / 100;
-        uint paymentForContribution = (paymentForImprovForTraining * getDOContribution(modelId, dataOwner)) / 100;
+        uint paymentForContribution = (paymentForImprovForTraining * _getDOContribution(modelId, dataOwner)) / 100;
         return paymentForContribution;
     }
 
@@ -277,7 +285,7 @@ contract Marketplace {
      */
 
     function executePayForContribution(string memory modelId, address payable dataOwnerAddress) private isFinished(modelId) {
-        uint prize = calculatePaymentForContribution(modelId, dataOwnerAddress);
+        uint prize = _calculatePaymentForContribution(modelId, dataOwnerAddress);
         dataOwnerAddress.transfer(prize);
         emit ContributionPayment(dataOwnerAddress, prize);
     }
@@ -295,7 +303,7 @@ contract Marketplace {
     }
 
     function returnModelBuyerPayment(string memory modelId, address payable modelBuyer) private isFinished(modelId) {
-        uint prize = modelBuyer.balance;
+        uint prize = address(this).balance;
         modelBuyer.transfer(prize);
         emit ModelBuyerReturnPayment(modelBuyer, prize);
     }
@@ -315,7 +323,7 @@ contract Marketplace {
         // Pay orchestrator
         executePayForOrchestration(modelId, address(uint160(model.federatedAggregator)));
         // Return payments to model buyer
-        returnModelBuyerPayment(modelId, address(uint160(model.owner)));
+        //returnModelBuyerPayment(modelId, address(uint160(model.owner)));
     }
 
     /**
