@@ -300,7 +300,7 @@ contract Marketplace {
         emit ModelBuyerReturnPayment(modelBuyer, prize);
     }
 
-    function generateTrainingPayments(string memory modelId) public isFinished(modelId) {
+    function generateTrainingPayments(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
         ModelData storage model = models[modelId];
         // Pay trainers
         for (uint i = 0; i < model.trainers.length; i++) {
