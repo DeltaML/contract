@@ -18,6 +18,7 @@ contract Marketplace {
         mapping(address => uint) contributions; // Percentages
         Status status;
         address owner; // Model Buyer's are the owners
+        address federatedAggregator; // federatedAggregator orchestrator
     }
 
     mapping(address => bool) public dataOwners;
@@ -99,7 +100,7 @@ contract Marketplace {
     /******************************                   MODEL CREATION                  *********************************/
     /******************************************************************************************************************/
 
-    function initModel(string memory modelId, address[] memory validators, address[] memory trainers, address modelBuyer) private pure returns (ModelData memory) {
+    function initModel(string memory modelId, address[] memory validators, address[] memory trainers, address modelBuyer, address federatedAggregator) private pure returns (ModelData memory) {
         ModelData memory model = ModelData({
             trainers: trainers,
             validators: validators,
@@ -109,13 +110,14 @@ contract Marketplace {
             currIter: 0,
             frozenPayment: 0,
             status: Status.INITIATED,
-            owner: modelBuyer
+            owner: modelBuyer,
+            federatedAggregator: federatedAggregator
         });
         return model;
     }
 
     function newModel(string memory modelId, address[] memory validators, address[] memory trainers, address modelBuyer) public onlyFederatedAggr {
-        models[modelId] = initModel(modelId, validators, trainers, modelBuyer);
+        models[modelId] = initModel(modelId, validators, trainers, modelBuyer, msg.sender);
     }
 
     /**
@@ -268,25 +270,60 @@ contract Marketplace {
     /******************************                      PAYMENTS                     *********************************/
     /******************************************************************************************************************/
 
+
+    /**
+        Private payment functions
+     */
+
+    function executePayForContribution(string memory modelId, address payable dataOwnerAddress) private isFinished(modelId) {
+        uint prize = calculatePaymentForContribution(modelId, dataOwnerAddress);
+        dataOwnerAddress.transfer(prize);
+        emit ContributionPayment(dataOwnerAddress, prize);
+    }
+
+    function executePayForValidation(string memory modelId, address payable dataOwnerAddress) private isFinished(modelId) {
+        uint prize = calculatePaymentForValidation(modelId);
+        dataOwnerAddress.transfer(prize);
+        emit ValidationPayment(dataOwnerAddress, prize);
+    }
+
+    function executePayForOrchestration(string memory modelId, address payable faAddress) private isFinished(modelId) {
+        uint prize = calculatePaymentForOrchestration(modelId);
+        faAddress.transfer(prize);
+        emit OrchestrationPayment(faAddress, prize);
+    }
+
+    function generateTrainingPayments(string memory modelId) public isFinished(modelId) {
+        ModelData storage model = models[modelId];
+        // Pay trainers
+        for (uint i = 0; i < model.trainers.length; i++) {
+            address payable trainer = address(uint160(model.trainers[i]));
+            executePayForContribution(modelId, trainer);
+        }
+        // Pay validators
+        for (uint i = 0; i < model.validators.length; i++) {
+            address payable validator = address(uint160(model.validators[i]));
+            executePayForValidation(modelId, validator);
+        }
+        // Pay orchestrator
+        executePayForOrchestration(modelId, address(uint160(model.federatedAggregator)));
+    }
+
     /**
       Function called from Data Owner with his address.
       Pays the Data Owner for his work done training the model.
     */
-    function payForContribution(string memory modelId) public onlyDataOwner isFinished(modelId) {
-        uint prize = calculatePaymentForContribution(modelId, msg.sender);
-        msg.sender.transfer(prize);
-        emit ContributionPayment(msg.sender, prize);
+    function payForContribution(string memory modelId) public onlyDataOwner {
+        executePayForContribution(modelId, msg.sender);
     }
 
-    function payForValidation(string memory modelId) public onlyDataOwner isFinished(modelId) {
-        uint prize = calculatePaymentForValidation(modelId);
-        msg.sender.transfer(prize);
-        emit ValidationPayment(msg.sender, prize);
+    function payForValidation(string memory modelId) public onlyDataOwner {
+        executePayForValidation(modelId, msg.sender);
     }
 
-    function payForOrchestration(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
-        uint prize = calculatePaymentForOrchestration(modelId);
-        msg.sender.transfer(prize);
-        emit OrchestrationPayment(msg.sender, prize);
+    function payForOrchestration(string memory modelId) public onlyFederatedAggr {
+        executePayForOrchestration(modelId, msg.sender);
     }
+
+
 }
