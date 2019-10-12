@@ -41,6 +41,7 @@ contract Marketplace {
     event ContributionPayment(address receiver, uint256 amount);
     event ValidationPayment(address receiver, uint256 amount);
     event OrchestrationPayment(address receiver, uint256 amount);
+    event ModelBuyerReturnPayment(address receiver, uint256 amount);
 
     /******************************************************************************************************************/
     /******************************                     MODIFIERS                     *********************************/
@@ -293,6 +294,12 @@ contract Marketplace {
         emit OrchestrationPayment(faAddress, prize);
     }
 
+    function returnModelBuyerPayment(string memory modelId, address payable modelBuyer) private isFinished(modelId) {
+        uint prize = modelBuyer.balance;
+        modelBuyer.transfer(prize);
+        emit ModelBuyerReturnPayment(modelBuyer, prize);
+    }
+
     function generateTrainingPayments(string memory modelId) public isFinished(modelId) {
         ModelData storage model = models[modelId];
         // Pay trainers
@@ -307,6 +314,8 @@ contract Marketplace {
         }
         // Pay orchestrator
         executePayForOrchestration(modelId, address(uint160(model.federatedAggregator)));
+        // Return payments to model buyer
+        returnModelBuyerPayment(modelId, address(uint160(model.owner)));
     }
 
     /**
