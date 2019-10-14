@@ -308,7 +308,7 @@ contract Marketplace {
         emit ModelBuyerReturnPayment(modelBuyer, prize);
     }
 
-    function generateTrainingPayments(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
+    function generateTrainingPayments(string memory modelId) public onlyModelBuyer isFinished(modelId) {
         ModelData storage model = models[modelId];
         // Pay trainers
         for (uint i = 0; i < model.trainers.length; i++) {
@@ -323,7 +323,7 @@ contract Marketplace {
         // Pay orchestrator
         executePayForOrchestration(modelId, address(uint160(model.federatedAggregator)));
         // Return payments to model buyer
-        //returnModelBuyerPayment(modelId, address(uint160(model.owner)));
+        returnModelBuyerPayment(modelId, address(uint160(model.owner)));
     }
 
     /**
