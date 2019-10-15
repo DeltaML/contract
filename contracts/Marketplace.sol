@@ -25,6 +25,7 @@ contract Marketplace {
     mapping(address => bool) public federatedAggregators;
     mapping(address => bool) public modelBuyers;
     mapping(string => ModelData) public models;
+    mapping(string => uint256) private payments;
     mapping(string => uint256) public prices;
 
     enum Status {INITIATED, STOPPED, FINISHED}
@@ -126,7 +127,10 @@ contract Marketplace {
     */
     function payForModel(string memory modelId, uint256 pay) public payable onlyModelBuyer {
         require(msg.value == pay, "Payment amount is not correct.");
-        models[modelId].frozenPayment += pay;
+        if (payments[modelId] == 0) {
+            payments[modelId] = 0;
+        }
+        payments[modelId] += pay;
         emit ModelCreationPayment(address(this), pay);
     }
 
@@ -165,7 +169,7 @@ contract Marketplace {
     function getDOContribution(string memory modelId, address dataOwnerId) public onlyDataOwner view returns (uint) {
         return _getDOContribution(modelId, dataOwnerId);
     }
- 
+
     function _getDOContribution(string memory modelId, address dataOwnerId) private view returns (uint) {
         uint contribution = models[modelId].contributions[dataOwnerId];
         return contribution;
@@ -242,7 +246,7 @@ contract Marketplace {
     }
 
     function _calculatePaymentForContribution(string memory modelId, address dataOwner) private isFinished(modelId) view returns (uint) {
-        uint paymentForImprov = (models[modelId].frozenPayment * getImprovement(modelId)) / 100;
+        uint paymentForImprov = (payments[modelId] * getImprovement(modelId)) / 100;
         uint paymentForImprovForTraining = (paymentForImprov * 70) / 100;
         uint paymentForContribution = (paymentForImprovForTraining * _getDOContribution(modelId, dataOwner)) / 100;
         return paymentForContribution;
@@ -255,7 +259,7 @@ contract Marketplace {
       @param payeesCount amount of the payees that belong to the group that is payed equally.
     */
     function calculateFixedPayment(string memory modelId, uint take, uint payeesCount) private view returns (uint) {
-        return ((models[modelId].frozenPayment * take) / 100) / payeesCount;
+        return ((payments[modelId] * take) / 100) / payeesCount;
     }
 
     /**
