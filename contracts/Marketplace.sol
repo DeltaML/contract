@@ -226,6 +226,10 @@ contract Marketplace {
     // Calculates the contributions made by each of the data owners that participated in the training of the model
     // expressed as percentage.
     function calculateContributions(string memory modelId) public onlyFederatedAggr isFinished(modelId) {
+        _calculateContributions(modelId);
+    }
+
+    function _calculateContributions(string memory modelId) public isFinished(modelId) {
         ModelData storage model = models[modelId];
         uint iter = model.currIter;
         model.improvement = calculateImprovement(model.msesByIter[0], model.msesByIter[iter]);
@@ -240,6 +244,7 @@ contract Marketplace {
             model.contributions[trainer] = contributionPercentage(model.contributions[trainer], contributionsSum);
         }
     }
+
 
     function calculatePaymentForContribution(string memory modelId, address dataOwner) public onlyDataOwner view returns (uint) {
         return _calculatePaymentForContribution(modelId, dataOwner);
@@ -314,6 +319,7 @@ contract Marketplace {
 
     function generateTrainingPayments(string memory modelId) public onlyModelBuyer isFinished(modelId) {
         ModelData storage model = models[modelId];
+        _calculateContributions(modelId);
         // Pay trainers
         for (uint i = 0; i < model.trainers.length; i++) {
             address payable trainer = address(uint160(model.trainers[i]));
