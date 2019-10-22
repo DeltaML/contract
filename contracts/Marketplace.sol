@@ -31,7 +31,7 @@ contract Marketplace {
     enum Status {INITIATED, STOPPED, FINISHED}
 
     constructor() public {
-        prices["LINEAR_REGRESSION"] = 5883045064;
+        prices["LINEAR_REGRESSION"] = 5000000000000000000;
     }
 
     /******************************************************************************************************************/
@@ -126,7 +126,11 @@ contract Marketplace {
       Called from ModelBuyer when ordering training of model.
     */
     function payForModel(string memory modelId, uint256 pay) public payable onlyModelBuyer {
+        // TODO: Extract to modifier
         require(msg.value == pay, "Payment amount is not correct.");
+        require(pay > 0, "Payment amount should be greater than zero.");
+        string memory modelType = "LINEAR_REGRESSION"; // TODO: Should be replace for models[modelId].modelType
+        require(pay == prices[modelType], "Payment amount is not correct.");
         if (payments[modelId] == 0) {
             payments[modelId] = 0;
         }
